@@ -1,18 +1,31 @@
+// Chord Diagram Source: https://observablehq.com/@d3/chord-diagram
+
 const width = window.innerWidth;
 const height = window.innerHeight;
 
-let boxLeft = 0, boxTop = 0;
-let boxMargin = {left: 60, top: 90, bottom: 80, right: 60};
+let boxLeft = width * 0.5, boxTop = height / 2;
+let boxMargin = {left: 30, top: 90, bottom: 80, right: 60};
 
-let chordLeft = width * 0.6, chordTop = 0;
-let chordMargin = {left: 60, top: 90, bottom: 80, right: 60};
+let chordLeft = 0, chordTop = 0;
+let chordMargin = {left: 90, top: 100, bottom: 60, right: 90};
 
-let streamLeft = 0, streamTop = height / 2;
+let streamLeft = width * 0.5, streamTop = 0;
 let streamMargin = {left: 60, top: 90, bottom: 80, right: 80};
 
-let boxRight = chordLeft, boxBottom = height / 2;
-let chordRight = width, chordBottom = height / 2;
-let streamRight = width, streamBottom = height;
+let legendLeft = width * 0.8, legendTop = 0;
+let legendBottom = height / 2, legendRight = width;
+
+let titleMargin = 64;
+
+let boxRight = width, boxBottom = height;
+let chordRight = width * 0.5, chordBottom = height;
+let chordWidth = chordRight - chordMargin.right - chordLeft - chordMargin.left;
+let chordHeight = chordBottom - chordMargin.bottom - chordTop - chordMargin.top;
+let chordOuterRadius = Math.min(chordWidth, chordHeight) * 0.5;
+let chordInnerRadius = chordOuterRadius - 20;
+let streamRight = width * 0.8, streamBottom = height / 2;
+
+const numGenerations = 6;
 
 const types = [
     "Normal", "Fighting", "Flying", "Rock", "Ground", "Steel", "Poison", "Bug",
@@ -84,9 +97,9 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
     // Title
     const boxtext = gbox.append("text")
         .attr("x", (boxRight + boxLeft) / 2)
-        .attr("y", boxTop + boxMargin.top - 24)
+        .attr("y", boxTop + titleMargin)
         .attr("text-anchor", "middle")
-        .text("BST Statistics By Primary Type")
+        .text("\'Base Stat Total\' Statistics By Primary Type")
         .style("font-size", `24px`)
         .style("font-color", `black`)
 
@@ -126,7 +139,13 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
             .attr("height", d => boxy(d.Stats.quart1st) - boxy(d.Stats.quart3rd))
             .attr("fill", d => typeColorMap(d.PrimaryType))
             .attr("stroke", "black")
-            .attr("stroke-width", `1px`);
+            .attr("stroke-width", `1px`)
+        .append("title")
+            .text(d => `${d.PrimaryType} BST
+                Highest: ${d.Stats.max}
+                Lowest: ${d.Stats.min}
+                1st Quartile: ${d.Stats.quart1st}
+                3rd Quartile: ${d.Stats.quart3rd}`);
 
     // Median lines
     const boxmed = gbox.append("g")
@@ -155,15 +174,14 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
 
     // Chord Diagram
     const gh = svg.append("g")
-        .attr("width", boxRight - boxLeft)
-        .attr("height", boxBottom - boxTop)
-        .attr("translate", `translate(${boxLeft}, ${boxTop})`);
+        .attr("width", chordRight - chordLeft)
+        .attr("height", chordBottom - chordTop)
+        .attr("translate", `translate(${chordLeft}, ${chordTop})`);
 
-    const chordData = [...Array(types.length)].map(function(){
+    // Process data into a flow matrix
+    let chordData = [...Array(types.length)].map(function(){
         return Array(types.length).fill(0);
     });
-
-    console.log(chordData)
 
     let elemMap = new Map();
     for (let i = 0; i < types.length; i++)
@@ -174,7 +192,86 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
         chordData[elemMap.get(d.PrimaryType)][elemMap.get(k)]++; 
     });
     
-    console.log(chordData)
+    // Chords
+    const hchords = d3.chord()
+        .padAngle(Math.PI / chordInnerRadius);
+
+    const harcs = d3.arc()
+        .innerRadius(chordInnerRadius)
+        .outerRadius(chordOuterRadius);
+
+    const hribbons = d3.ribbon()
+        .radius(chordInnerRadius - 1)
+        
+    // Title
+    const htitle = gh.append("text")
+        .attr("x", (chordRight + chordLeft) / 2)
+        .attr("y", chordTop + titleMargin)
+        .text("Pokemon Type Distribution in Generation VI")
+        .style("font-size", `36px`)
+        .style("text-anchor", "middle")
+
+    let hcx = (chordLeft + chordMargin.left + chordRight - chordMargin.right) / 2
+    let hcy = (chordTop + chordMargin.top + chordBottom - chordMargin.bottom) / 2
+
+    const chordGroups = gh.append("g")
+        .selectAll()
+        .data(hchords(chordData).groups)
+        .join("g");
+    
+    // Outer arcs
+    chordGroups.append("path")
+        .attr("fill", d => typeColorMap(types[d.index]))
+        .attr("fill-opacity", 0.9)
+        .attr("d", harcs)
+        .attr("transform", `translate(${hcx}, ${hcy})`)
+    
+    // Tooltip
+    chordGroups.append("title")
+        .text(d => `${types[d.index]} → ${d.value}`)
+
+    // Ribbons
+    const chordDiagram = gh.append("g")
+        .selectAll("chord")
+        .data(hchords(chordData))
+        .join("path")
+            .attr("d", hribbons)
+            .attr("fill-opacity", 0.6)
+            .style("mix-blend-mode", "multiply")
+            .attr("fill", d => typeColorMap(types[d.source.index]))
+            .attr("transform", `translate(${hcx}, ${hcy})`)
+            .on("mouseover", function(){
+                d3.select(this).style("fill-opacity", 0.9);
+            })
+            .on("mouseout", function(){
+                d3.select(this).style("fill-opacity", 0.6);
+            })
+        .append("title")
+            .text(d => {
+                return (d.source.index == d.target.index ?
+                `Mono-${types[d.source.index]}` : `${types[d.source.index]}, ${types[d.target.index]}`) +
+                ` → ${d.source.value}`;
+            })
+
+    // Streamgraph
+    const gs = svg.append("g")
+        .attr("width", streamRight - streamLeft)
+        .attr("height", streamBottom - streamTop)
+        .attr("translate", `translate(${streamLeft}, ${streamTop})`);
+
+    // Process to Stream Data
+    const streamData = Array.from(Array(types.length * numGenerations),
+        function (_, i) {
+            let obj = {PrimaryType: types[i % types.length],
+                Generation: Math.floor(i / types.length) + 1, Frequency: 0};
+            return obj;
+        }
+    )
+
+    allData.forEach(d => {
+        streamData[--d.Generation * types.length + elemMap.get(d.PrimaryType)].Frequency++;
+    })
+
 
     }).catch(function(error){
     console.log(error);
