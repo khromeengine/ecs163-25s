@@ -325,6 +325,7 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
             return `${d.key}`
         })
 
+    // Title
     const stitle = gs.append("text")
         .text("Primary Types Over Generations")
         .attr("x", ((streamRight - streamMargin.right) + (streamLeft + streamMargin.left))/2)
@@ -332,6 +333,7 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
         .attr("text-anchor", "middle")
         .style("font-size", "24px")
 
+    // Axes
     const saxx1 = gs.append("g")
         .call(d3.axisBottom(sx).tickValues([1, 2, 3, 4, 5, 6]).tickFormat(d3.format(".0f")))
         .attr("transform", `translate(0, ${streamBottom - streamMargin.bottom})`)
@@ -367,14 +369,6 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
     const saxx2 = gs.append("g")
         .call(d3.axisTop(sx).tickValues([]).tickSizeOuter(0))
         .attr("transform", `translate(0, ${streamTop + streamMargin.top})`)
-
-    const testline = gs.append("line")
-        .attr("x1", streamLeft + streamMargin.left)
-        .attr("x2", streamLeft + streamMargin.left)
-        .attr("y1", 0)
-        .attr("y1", height)
-        .attr("stroke", "black")
-        .style("visibility", "hidden")
 
     // Legend
     const gl = svg.append("g")
