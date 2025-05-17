@@ -4,7 +4,7 @@ const width = window.innerWidth;
 const height = window.innerHeight;
 
 let boxLeft = width * 0.5, boxTop = height / 2;
-let boxMargin = {left: 30, top: 90, bottom: 80, right: 60};
+let boxMargin = {left: 30, top: 90, bottom: 100, right: 60};
 
 let chordLeft = 0, chordTop = 0;
 let chordMargin = {left: 90, top: 100, bottom: 60, right: 90};
@@ -12,8 +12,11 @@ let chordMargin = {left: 90, top: 100, bottom: 60, right: 90};
 let streamLeft = width * 0.5, streamTop = 0;
 let streamMargin = {left: 30, top: 90, bottom: 80, right: 80};
 
-let legendLeft = width * 0.8, legendTop = 0;
+let legendLeft = width * 0.9, legendTop = 0;
 let legendBottom = height / 2, legendRight = width;
+let legendMargin = {left: 0, top: 90, bottom: 30, right: 60, xinner: 25, yinner: 20};
+let legendPadding = 21;
+let legendColR = 7;
 
 let titleMargin = 64;
 
@@ -23,7 +26,7 @@ let chordWidth = chordRight - chordMargin.right - chordLeft - chordMargin.left;
 let chordHeight = chordBottom - chordMargin.bottom - chordTop - chordMargin.top;
 let chordOuterRadius = Math.min(chordWidth, chordHeight) * 0.5;
 let chordInnerRadius = chordOuterRadius - 20;
-let streamRight = width * 0.8, streamBottom = height / 2;
+let streamRight = width * 0.9, streamBottom = height / 2;
 
 const numGenerations = 6;
 
@@ -171,6 +174,19 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
         .selectAll("text")
             .attr("transform", `translate(0, 2)`)
     
+    const boxaxxlabel = gbox.append("text")
+        .text("Primary Type")
+        .attr("x", (boxRight + boxLeft - boxMargin.right + boxMargin.left) / 2)
+        .attr("y", (boxBottom - boxMargin.bottom) + 48)
+        .attr("text-anchor", "middle")
+        .style("font-size", `18px`)
+
+    const boxaxylabel = gbox.append("text")
+        .text("Total Stats")
+        .attr("transform", `translate(${(boxLeft + boxMargin.left) - 45}, ${(boxTop + boxMargin.top + boxBottom - boxMargin.bottom) / 2}) rotate(-90)`)
+        .attr("text-anchor", "middle")
+        .attr("font-size", `18px`)
+
 
     // Chord Diagram
     const gh = svg.append("g")
@@ -267,8 +283,6 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
         return obj;
     })
 
-    //console.log(streamData)
-
     allData.forEach(d => {
         for (let i = d.Generation; i < numGenerations+1; i++)
             streamData[i - 1].Frequencies[elemMap.get(d.PrimaryType)]++;
@@ -331,13 +345,13 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
         .attr("x", ((streamRight - streamMargin.right) + (streamLeft + streamMargin.left))/2)
         .attr("y", streamBottom - streamMargin.bottom + 50)
         .attr("text-anchor", "middle")
-        .attr("font-size", `20px`)
+        .attr("font-size", `18px`)
 
     const saxylabel = gs.append("text")
         .text("Count")
-        .attr("transform", `translate(${(streamLeft + streamMargin.left) - 35}, ${(streamTop + streamMargin.top + streamBottom - streamMargin.bottom) / 2}) rotate(-90)`)
+        .attr("transform", `translate(${(streamLeft + streamMargin.left) - 45}, ${(streamTop + streamMargin.top + streamBottom - streamMargin.bottom) / 2}) rotate(-90)`)
         .attr("text-anchor", "middle")
-        .attr("font-size", `20px`)
+        .attr("font-size", `18px`)
     
     const saxy1 = gs.append("g")
         .call(d3.axisLeft(sy).tickSizeOuter(0).tickSizeInner(0))
@@ -354,7 +368,6 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
         .call(d3.axisTop(sx).tickValues([]).tickSizeOuter(0))
         .attr("transform", `translate(0, ${streamTop + streamMargin.top})`)
 
-    
     const testline = gs.append("line")
         .attr("x1", streamLeft + streamMargin.left)
         .attr("x2", streamLeft + streamMargin.left)
@@ -362,6 +375,44 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
         .attr("y1", height)
         .attr("stroke", "black")
         .style("visibility", "hidden")
+
+    // Legend
+    const gl = svg.append("g")
+        .attr("width", legendRight - legendLeft)
+        .attr("height", legendBottom - legendTop)
+
+    const legendbox = gl.append("rect")
+        .attr("width", legendRight - legendMargin.left - legendLeft - legendMargin.right)
+        .attr("height", legendPadding * types.length + legendMargin.yinner)
+        .attr("stroke", "black")
+        .attr("fill-opacity", 0)
+        .attr("x", legendLeft + legendMargin.left)
+        .attr("y", legendTop + legendMargin.top)
+        
+
+    const legendcol = gl.append("g")
+        .selectAll("legendColors")
+        .data(types)
+        .join("circle")
+            .attr("cx", legendLeft + legendMargin.left + legendMargin.xinner)
+            .attr("cy", (_, i) => legendTop + legendMargin.top + legendMargin.yinner + i * legendPadding)
+            .attr("r", `${legendColR}px`)
+            .attr("fill", d => typeColorMap(d))
+    
+    const legendtext = gl.append("g")
+        .selectAll("legendText")
+        .data(types)
+        .join("text")
+            .attr("x", legendLeft + legendMargin.left + legendMargin.xinner + 20)
+            .attr("y", (_, i) => legendTop + legendMargin.top + legendMargin.yinner + i * legendPadding + legendColR / 2)
+            .text(d => d)
+        
+    const legendtitle = gl.append("text")
+        .text("Legend")
+        .attr("x", ((legendRight - legendMargin.right) + (legendLeft + legendMargin.left)) / 2)
+        .attr("y", legendTop + titleMargin)
+        .attr("text-anchor", "middle")
+        .style("font-size", "24px")
 
     }).catch(function(error){
     console.log(error);
