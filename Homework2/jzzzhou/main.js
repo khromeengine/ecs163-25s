@@ -10,7 +10,7 @@ let chordLeft = 0, chordTop = 0;
 let chordMargin = {left: 90, top: 100, bottom: 60, right: 90};
 
 let streamLeft = width * 0.5, streamTop = 0;
-let streamMargin = {left: 60, top: 90, bottom: 80, right: 80};
+let streamMargin = {left: 30, top: 90, bottom: 80, right: 80};
 
 let legendLeft = width * 0.8, legendTop = 0;
 let legendBottom = height / 2, legendRight = width;
@@ -142,10 +142,10 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
             .attr("stroke-width", `1px`)
         .append("title")
             .text(d => `${d.PrimaryType} BST
-                Highest: ${d.Stats.max}
-                Lowest: ${d.Stats.min}
-                1st Quartile: ${d.Stats.quart1st}
-                3rd Quartile: ${d.Stats.quart3rd}`);
+                Highest → ${d.Stats.max}
+                Lowest → ${d.Stats.min}
+                1st Quartile → ${d.Stats.quart1st}
+                3rd Quartile → ${d.Stats.quart3rd}`);
 
     // Median lines
     const boxmed = gbox.append("g")
@@ -257,21 +257,111 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
     const gs = svg.append("g")
         .attr("width", streamRight - streamLeft)
         .attr("height", streamBottom - streamTop)
-        .attr("translate", `translate(${streamLeft}, ${streamTop})`);
 
     // Process to Stream Data
-    const streamData = Array.from(Array(types.length * numGenerations),
-        function (_, i) {
-            let obj = {PrimaryType: types[i % types.length],
-                Generation: Math.floor(i / types.length) + 1, Frequency: 0};
-            return obj;
-        }
-    )
-
-    allData.forEach(d => {
-        streamData[--d.Generation * types.length + elemMap.get(d.PrimaryType)].Frequency++;
+    let streamData = Array.from(Array(numGenerations)).map((_, i) => {
+        let obj = {
+            Generation: i + 1,
+            Frequencies: new Array(types.length).fill(0)
+        };
+        return obj;
     })
 
+    //console.log(streamData)
+
+    allData.forEach(d => {
+        for (let i = d.Generation; i < numGenerations+1; i++)
+            streamData[i - 1].Frequencies[elemMap.get(d.PrimaryType)]++;
+    })
+
+    console.log(streamData)
+
+    const series = d3.stack()
+        .offset(d3.stackOffsetSilhouette)
+        .order(d3.stackOrderNone)
+        .keys(types)
+        .value((obj, key) => obj.Frequencies[elemMap.get(key)])
+        (streamData);
+
+    console.log(series)
+
+
+    const sx = d3.scaleLinear()
+        .domain([1, numGenerations])
+        .range([streamLeft + streamMargin.left, streamRight - streamMargin.right]);
+    
+    const sy = d3.scaleLinear()
+        .domain([-400, 400])
+        .range([streamBottom - streamMargin.bottom, streamTop + streamMargin.top]);
+        
+    const sarea = d3.area()
+        .x(d => sx(d.data.Generation))
+        .y0(d => sy(d[0]))
+        .y1(d => sy(d[1]));
+        
+    const stack = gs.append("g")
+        .selectAll("stack")
+        .data(series)
+        .join("path")
+            .attr("fill", d => typeColorMap(d.key))
+            .attr("d", sarea)
+            //.attr("transform", `translate(${streamMargin.left}, ${0})`)
+        .append("title")
+        .text(d => {
+            return `${d.key}`
+        })
+
+    const stitle = gs.append("text")
+        .text("Primary Types Over Generations")
+        .attr("x", ((streamRight - streamMargin.right) + (streamLeft + streamMargin.left))/2)
+        .attr("y", streamTop + titleMargin)
+        .attr("text-anchor", "middle")
+        .style("font-size", "24px")
+
+    const saxx1 = gs.append("g")
+        .call(d3.axisBottom(sx).tickValues([1, 2, 3, 4, 5, 6]).tickFormat(d3.format(".0f")))
+        .attr("transform", `translate(0, ${streamBottom - streamMargin.bottom})`)
+        .selectAll("text")
+            .style("font-size", `13px`)
+            .attr("transform", `translate(0, 6)`)
+            .text(d => `Gen ${d}`)
+
+    const saxxlabel = gs.append("text")
+        .text("Generations")
+        .attr("x", ((streamRight - streamMargin.right) + (streamLeft + streamMargin.left))/2)
+        .attr("y", streamBottom - streamMargin.bottom + 50)
+        .attr("text-anchor", "middle")
+        .attr("font-size", `20px`)
+
+    const saxylabel = gs.append("text")
+        .text("Count")
+        .attr("transform", `translate(${(streamLeft + streamMargin.left) - 35}, ${(streamTop + streamMargin.top + streamBottom - streamMargin.bottom) / 2}) rotate(-90)`)
+        .attr("text-anchor", "middle")
+        .attr("font-size", `20px`)
+    
+    const saxy1 = gs.append("g")
+        .call(d3.axisLeft(sy).tickSizeOuter(0).tickSizeInner(0))
+        .attr("transform", `translate(${streamLeft + streamMargin.left}, 0)`)
+        .selectAll("text")
+            .attr("transform", `translate(-6, 0)`)
+            .text(d => Math.abs(d))
+
+    const saxy2 = gs.append("g")
+        .call(d3.axisRight(sy).tickValues([]).tickSizeOuter(0))
+        .attr("transform", `translate(${streamRight - streamMargin.right}, 0)`)
+        
+    const saxx2 = gs.append("g")
+        .call(d3.axisTop(sx).tickValues([]).tickSizeOuter(0))
+        .attr("transform", `translate(0, ${streamTop + streamMargin.top})`)
+
+    
+    const testline = gs.append("line")
+        .attr("x1", streamLeft + streamMargin.left)
+        .attr("x2", streamLeft + streamMargin.left)
+        .attr("y1", 0)
+        .attr("y1", height)
+        .attr("stroke", "black")
+        .style("visibility", "hidden")
 
     }).catch(function(error){
     console.log(error);
