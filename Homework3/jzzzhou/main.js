@@ -45,7 +45,14 @@ const typeColor = [
     "dimgrey", "hotpink", "mediumpurple", "royalblue", "plum"
 ];
 
-const typeHighlightDispatch = d3.dispatch("typeHighlighted");
+var highlightedTypes = Array(types.length).fill(false);
+var highlightedTypeCombos = Array.from(Array(types.length), function(){
+    return new Array(types.length).fill(false);
+});
+var highlightLocked = Array(types.length).fill(false);
+var highlightedComboLocked = Array.from(Array(types.length), function(){
+    return new Array(types.length).fill(false);
+});
 
 // plots
 d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
@@ -58,6 +65,10 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
             "BST": d.Total,
         };
     });
+
+    let elemMap = new Map();
+    for (let i = 0; i < types.length; i++)
+        elemMap.set(types[i], i);
 
     const typeColorMap = d3.scaleOrdinal()
         .domain(types)
@@ -86,7 +97,6 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
         }
     });
 
-    console.log(boxData);
 
     // Box Y axis
     const boxmaxbst = 800;
@@ -148,16 +158,6 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
             .attr("fill", d => typeColorMap(d.PrimaryType))
             .attr("stroke", "black")
             .attr("stroke-width", `1px`)
-            .on(`typeHighlighted`, function(d) {
-                if (d.PrimaryType != d3.event.detail.type) {
-                    d3.select(this).attr("fill-opacity", dehighlightOpacity);
-                    d3.select(this).attr("stroke-opacity", dehighlightOpacity);
-                }
-            })
-            .on("typeDehighlighted", function() {
-                d3.select(this).attr("fill-opacity", highlightOpacity);
-                d3.select(this).attr("stroke-opacity", highlightOpacity);
-            })
         .append("title")
             .text(d => `${d.PrimaryType} BST
                 Highest → ${d.Stats.max}
@@ -178,16 +178,24 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
             .attr("stroke-width", `1px`);
 
     gbox.selectAll("line")
-        .on(`typeHighlighted`, function(d) {
-            if (d.PrimaryType != d3.event.detail.type) {
+        .on("typeUpdate", function(d) {
+            if (highlightedTypes[elemMap.get(d.PrimaryType)]) {
+                d3.select(this).attr("stroke-opacity", highlightOpacity);
+            } else {
                 d3.select(this).attr("stroke-opacity", dehighlightOpacity);
             }
         })
-        .on("typeDehighlighted", function() {
-            d3.select(this).attr("stroke-opacity", highlightOpacity);
-        });
             
-
+    gbox.selectAll("rect")
+        .on(`typeUpdate`, function(d) {
+            if (highlightedTypes[elemMap.get(d.PrimaryType)]) {
+                d3.select(this).attr("fill-opacity", highlightOpacity);
+                d3.select(this).attr("stroke-opacity", highlightOpacity);
+            } else {
+                d3.select(this).attr("fill-opacity", dehighlightOpacity);
+                d3.select(this).attr("stroke-opacity", dehighlightOpacity);
+            }
+        })
 
     // Y-axis
     const boxaxy = gbox.append("g")
@@ -225,10 +233,6 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
     let chordData = [...Array(types.length)].map(function(){
         return Array(types.length).fill(0);
     });
-
-    let elemMap = new Map();
-    for (let i = 0; i < types.length; i++)
-        elemMap.set(types[i], i);
 
     allData.forEach(d => {
         let k = d.SecondaryType ? d.SecondaryType : d.PrimaryType;
@@ -269,17 +273,33 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
         .attr("d", harcs)
         .attr("transform", `translate(${hcx}, ${hcy})`)
         .on("mouseover", function(d){
-                d3.selectAll("g").selectAll("rect,line").dispatch("typeHighlighted", {
-                    detail: {
-                        type: types[d.index],
-                    },
-                });
+                highlightedTypes[d.index] = true; 
+                highlightedTypeCombos[d.index].fill(true);
+                d3.selectAll("g").selectAll("rect,line,area,path").dispatch("typeUpdate");
             }
         )
-        .on("mouseout", function(){
-                d3.selectAll("g").selectAll("rect,line").dispatch("typeDehighlighted")
+        .on("mouseout", function(d){
+                if (!highlightLocked[d.index]) {
+                    highlightedTypes[d.index] = false;
+                    highlightedTypeCombos[d.index].fill(false);
+                }
+                d3.selectAll("g").selectAll("rect,line,area,path").dispatch("typeUpdate")
             }
         )
+        .on("click", function(d){
+            if (highlightedComboLocked[d.index].includes(false)) {
+                highlightedTypes[d.index] = true;
+                highlightedComboLocked[d.index].fill(true);
+                highlightedTypeCombos[d.index].fill(true);
+                highlightLocked[d.index] = true;
+            } else {
+                highlightedTypes[d.index] = false;
+                highlightedComboLocked[d.index].fill(false);
+                highlightedTypeCombos[d.index].fill(false);
+                highlightLocked[d.index] = false;
+            }
+            d3.selectAll("g").selectAll("rect,line,area,path").dispatch("typeUpdate")
+        })
     
     // Tooltip
     chordGroups.append("title")
@@ -296,19 +316,35 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
             .attr("fill", d => typeColorMap(types[d.source.index]))
             .attr("transform", `translate(${hcx}, ${hcy})`)
             .on("mouseover", function(d){
-                d3.select(this).style("fill-opacity", highlightOpacity);
-                d3.selectAll("g").selectAll("rect,line").dispatch("typeHighlighted", {
-                        detail: {
-                            type: types[d.source.index],
-                        },
-                    });
+                    highlightedTypes[d.source.index] = true;
+                    highlightedTypeCombos[d.source.index][d.target.index] = true;
+                    d3.selectAll("g").selectAll("rect,line,area,path").dispatch("typeUpdate");
                 }
             )
-            .on("mouseout", function(){
+            .on("mouseout", function(d){
+                    if (!highlightLocked[d.source.index]) {
+                        highlightedTypes[d.source.index] = false;
+                    }
+                    if (!highlightedComboLocked[d.source.index][d.target.index]) {
+                        highlightedTypeCombos[d.source.index][d.target.index] = false;
+                    }
+                    d3.selectAll("g").selectAll("rect,line,area,path").dispatch("typeUpdate");
+                }
+            )
+            .on("click", function(d){
+                highlightedComboLocked[d.source.index][d.target.index] = !highlightedComboLocked[d.source.index][d.target.index];
+                highlightLocked[d.source.index] = highlightedComboLocked[d.source.index].includes(true);
+                highlightedTypeCombos[d.source.index][d.target.index] = highlightedComboLocked[d.source.index][d.target.index];
+                highlightedTypes[d.source.index] = highlightLocked[d.source.index];
+            })
+            .on("typeUpdate", function(d) {
+                if (!highlightedTypeCombos[d.source.index][d.target.index]) {
                     d3.select(this).style("fill-opacity", dehighlightOpacity);
-                    d3.selectAll("g").selectAll("rect,line").dispatch("typeDehighlighted")
+                } else {
+                    d3.select(this).style("fill-opacity", highlightOpacity);
                 }
-            )
+            })
+    
         .append("title")
             .text(d => {
                 return (d.source.index == d.target.index ?
@@ -335,17 +371,12 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
             streamData[i - 1].Frequencies[elemMap.get(d.PrimaryType)]++;
     })
 
-    console.log(streamData)
-
     const series = d3.stack()
         .offset(d3.stackOffsetSilhouette)
         .order(d3.stackOrderNone)
         .keys(types)
         .value((obj, key) => obj.Frequencies[elemMap.get(key)])
         (streamData);
-
-    console.log(series)
-
 
     const sx = d3.scaleLinear()
         .domain([1, numGenerations])
@@ -367,6 +398,24 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
             .attr("fill", d => typeColorMap(d.key))
             .attr("d", sarea)
             //.attr("transform", `translate(${streamMargin.left}, ${0})`)
+            .on("typeUpdate", function(d){
+                if (!highlightedTypes.includes(true)) {
+                    d3.select(this)
+                        .transition()
+                        .duration(0)
+                        .attr("fill-opacity", highlightOpacity);
+                } else {
+                    highlightedTypes[elemMap.get(d.key)] ? 
+                    d3.select(this)
+                        .transition()
+                        .duration(0)
+                        .attr("fill-opacity", highlightOpacity) :
+                    d3.select(this)
+                        .transition()
+                        .duration(500)
+                        .attr("fill-opacity", dehighlightOpacity - 0.2);
+                }
+            })
         .append("title")
         .text(d => {
             return `${d.key}`
