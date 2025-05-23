@@ -30,6 +30,9 @@ let streamRight = width * 0.9, streamBottom = height / 2;
 
 const numGenerations = 6;
 
+const highlightOpacity = 1.0;
+const dehighlightOpacity = 0.3;
+
 const types = [
     "Normal", "Fighting", "Flying", "Rock", "Ground", "Steel", "Poison", "Bug",
     "Grass", "Water", "Fire", "Ice", "Electric", 
@@ -41,6 +44,8 @@ const typeColor = [
     "limegreen", "dodgerblue", "crimson", "cyan", "gold",
     "dimgrey", "hotpink", "mediumpurple", "royalblue", "plum"
 ];
+
+const typeHighlightDispatch = d3.dispatch("typeHighlighted");
 
 // plots
 d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
@@ -109,7 +114,7 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
     // Y-axis graph lines
     let bstaxisRange = d3.range(boxminbst, boxmaxbst+1, 50);
     const boxplotlines = gbox.append("g")
-        .selectAll("boxLines")
+        .selectAll()
         .data(bstaxisRange)
         .join("line")
             .attr("x1", boxLeft + boxMargin.left)
@@ -121,7 +126,7 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
 
     // Extrema lines
     const boxlines = gbox.append("g")
-        .selectAll("extremaLines")
+        .selectAll("line")
         .data(boxData)
         .join("line")
             .attr("x1", d => boxx(d.PrimaryType) + boxx.bandwidth() / 2)
@@ -129,11 +134,11 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
             .attr("y1", d => boxy(d.Stats.max))
             .attr("y2", d => boxy(d.Stats.min))
             .attr("stroke", "black")
-            .attr("stroke-width", `1px`);
+            .attr("stroke-width", `1px`)
 
     // Quartile boxes
     const boxboxes = gbox.append("g")
-        .selectAll("boxes")
+        .selectAll("rect")
         .data(boxData)
         .join("rect")
             .attr("x", d => boxx(d.PrimaryType))
@@ -143,6 +148,16 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
             .attr("fill", d => typeColorMap(d.PrimaryType))
             .attr("stroke", "black")
             .attr("stroke-width", `1px`)
+            .on(`typeHighlighted`, function(d) {
+                if (d.PrimaryType != d3.event.detail.type) {
+                    d3.select(this).attr("fill-opacity", dehighlightOpacity);
+                    d3.select(this).attr("stroke-opacity", dehighlightOpacity);
+                }
+            })
+            .on("typeDehighlighted", function() {
+                d3.select(this).attr("fill-opacity", highlightOpacity);
+                d3.select(this).attr("stroke-opacity", highlightOpacity);
+            })
         .append("title")
             .text(d => `${d.PrimaryType} BST
                 Highest → ${d.Stats.max}
@@ -152,7 +167,7 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
 
     // Median lines
     const boxmed = gbox.append("g")
-        .selectAll("medianLines")
+        .selectAll("line")
         .data(boxData)
         .join("line")
             .attr("x1", d => boxx(d.PrimaryType) + boxx.bandwidth())
@@ -161,6 +176,18 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
             .attr("y2", d => boxy(d.Stats.median))
             .attr("stroke", "black")
             .attr("stroke-width", `1px`);
+
+    gbox.selectAll("line")
+        .on(`typeHighlighted`, function(d) {
+            if (d.PrimaryType != d3.event.detail.type) {
+                d3.select(this).attr("stroke-opacity", dehighlightOpacity);
+            }
+        })
+        .on("typeDehighlighted", function() {
+            d3.select(this).attr("stroke-opacity", highlightOpacity);
+        });
+            
+
 
     // Y-axis
     const boxaxy = gbox.append("g")
@@ -238,9 +265,21 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
     // Outer arcs
     chordGroups.append("path")
         .attr("fill", d => typeColorMap(types[d.index]))
-        .attr("fill-opacity", 0.9)
+        .attr("fill-opacity", 1.0)
         .attr("d", harcs)
         .attr("transform", `translate(${hcx}, ${hcy})`)
+        .on("mouseover", function(d){
+                d3.selectAll("g").selectAll("rect,line").dispatch("typeHighlighted", {
+                    detail: {
+                        type: types[d.index],
+                    },
+                });
+            }
+        )
+        .on("mouseout", function(){
+                d3.selectAll("g").selectAll("rect,line").dispatch("typeDehighlighted")
+            }
+        )
     
     // Tooltip
     chordGroups.append("title")
@@ -252,16 +291,24 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
         .data(hchords(chordData))
         .join("path")
             .attr("d", hribbons)
-            .attr("fill-opacity", 0.6)
+            .attr("fill-opacity", dehighlightOpacity)
             .style("mix-blend-mode", "multiply")
             .attr("fill", d => typeColorMap(types[d.source.index]))
             .attr("transform", `translate(${hcx}, ${hcy})`)
-            .on("mouseover", function(){
-                d3.select(this).style("fill-opacity", 0.9);
-            })
+            .on("mouseover", function(d){
+                d3.select(this).style("fill-opacity", highlightOpacity);
+                d3.selectAll("g").selectAll("rect,line").dispatch("typeHighlighted", {
+                        detail: {
+                            type: types[d.source.index],
+                        },
+                    });
+                }
+            )
             .on("mouseout", function(){
-                d3.select(this).style("fill-opacity", 0.6);
-            })
+                    d3.select(this).style("fill-opacity", dehighlightOpacity);
+                    d3.selectAll("g").selectAll("rect,line").dispatch("typeDehighlighted")
+                }
+            )
         .append("title")
             .text(d => {
                 return (d.source.index == d.target.index ?
