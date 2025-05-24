@@ -1,4 +1,12 @@
-// Chord Diagram Source: https://observablehq.com/@d3/chord-diagram
+/*
+ *  HW3: Visualization Dashboard - Interactivity
+ *  --------------------------------------------
+ *  Extended from HW2.
+ *  Sources used:
+ *      - https://www.d3indepth.com/zoom-and-pan/
+ *      - https://www.datamake.io/blog/d3-zoom
+ *  
+ */
 
 const width = window.innerWidth;
 const height = window.innerHeight;
@@ -7,7 +15,7 @@ let boxLeft = width * 0.5, boxTop = height / 2;
 let boxMargin = {left: 30, top: 90, bottom: 100, right: 60};
 
 let chordLeft = 0, chordTop = 0;
-let chordMargin = {left: 90, top: 100, bottom: 60, right: 90};
+let chordMargin = {left: 40, top: 100, bottom: 40, right: 60};
 
 let streamLeft = width * 0.5, streamTop = 0;
 let streamMargin = {left: 30, top: 90, bottom: 80, right: 80};
@@ -74,7 +82,8 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
         .domain(types)
         .range(typeColor);
 
-    const svg = d3.select("svg");
+    const svg = d3.select("svg")
+        .style("overflow", "hidden");
 
     // Box Plot
     const gbox = svg.append("g")
@@ -179,21 +188,32 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
 
     gbox.selectAll("line")
         .on("typeUpdate", function(d) {
-            if (highlightedTypes[elemMap.get(d.PrimaryType)]) {
-                d3.select(this).attr("stroke-opacity", highlightOpacity);
+            if (!highlightedTypes.includes(true)) {
+                d3.select(this)
+                    .attr("fill-opacity", highlightOpacity);
             } else {
-                d3.select(this).attr("stroke-opacity", dehighlightOpacity);
+                highlightedTypes[elemMap.get(d.PrimaryType)] ? 
+                d3.select(this)
+                    .attr("fill-opacity", highlightOpacity) :
+                d3.select(this)
+                    .attr("fill-opacity", dehighlightOpacity);
             }
         })
             
     gbox.selectAll("rect")
         .on(`typeUpdate`, function(d) {
-            if (highlightedTypes[elemMap.get(d.PrimaryType)]) {
-                d3.select(this).attr("fill-opacity", highlightOpacity);
-                d3.select(this).attr("stroke-opacity", highlightOpacity);
+            if (!highlightedTypes.includes(true)) {
+                d3.select(this)
+                    .attr("fill-opacity", highlightOpacity)
+                    .attr("stroke-opacity", highlightOpacity);
             } else {
-                d3.select(this).attr("fill-opacity", dehighlightOpacity);
-                d3.select(this).attr("stroke-opacity", dehighlightOpacity);
+                highlightedTypes[elemMap.get(d.PrimaryType)] ? 
+                d3.select(this)
+                    .attr("fill-opacity", highlightOpacity)
+                    .attr("stroke-opacity", highlightOpacity) :
+                d3.select(this)
+                    .attr("fill-opacity", dehighlightOpacity)
+                    .attr("stroke-opacity", dehighlightOpacity);
             }
         })
 
@@ -224,10 +244,44 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
 
 
     // Chord Diagram
-    const gh = svg.append("g")
-        .attr("width", chordRight - chordLeft)
-        .attr("height", chordBottom - chordTop)
-        .attr("translate", `translate(${chordLeft}, ${chordTop})`);
+    const hborderrect = svg.append("rect")
+        .attr("x", chordMargin.left)
+        .attr("y", chordMargin.top)
+        .attr("width", chordRight - chordMargin.right - chordMargin.left)
+        .attr("height", chordBottom - chordMargin.top - chordMargin.bottom)
+        .attr("fill-opacity", 0.0)
+        .style("stroke", "black")
+        .style("stroke-width", "2px")
+
+    const svgh = svg.append("svg")
+        .attr("viewBox", [0, 0, chordRight - chordMargin.right - chordMargin.left, chordBottom - chordMargin.top - chordMargin.bottom])
+        .attr("x", chordMargin.left)
+        .attr("y", chordMargin.top)
+        .attr("width", chordRight - chordMargin.right - chordMargin.left)
+        .attr("height", chordBottom - chordMargin.top - chordMargin.bottom)
+        .attr("style", `overflow: hidden; position: absolute`)
+
+    const gh = svgh.append("g")
+        .attr("style", "position: absolute")
+
+    const hgrabbox = gh.append("rect")
+        .attr("x", chordLeft)
+        .attr("y", chordTop)
+        .attr("width", chordRight)
+        .attr("height", chordBottom)
+        .attr("fill", "white")
+        .attr("fill-opacity", 0.0);
+
+    // Zoom Object
+    let zoom = d3.zoom()
+        .scaleExtent([1.0, 5])
+        .translateExtent([[0, 0], [chordRight - chordMargin.right - chordMargin.left, chordBottom - chordMargin.bottom - chordMargin.top]])
+        .on("zoom", function() {
+            gh.attr("transform", d3.event.transform);
+            console.log(d3.event.transform);
+        });
+
+    gh.call(zoom); 
 
     // Process data into a flow matrix
     let chordData = [...Array(types.length)].map(function(){
@@ -251,15 +305,15 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
         .radius(chordInnerRadius - 1)
         
     // Title
-    const htitle = gh.append("text")
+    const htitle = svg.append("text")
         .attr("x", (chordRight + chordLeft) / 2)
         .attr("y", chordTop + titleMargin)
         .text("Pokemon Type Distribution in Generation VI")
         .style("font-size", `36px`)
         .style("text-anchor", "middle")
 
-    let hcx = (chordLeft + chordMargin.left + chordRight - chordMargin.right) / 2
-    let hcy = (chordTop + chordMargin.top + chordBottom - chordMargin.bottom) / 2
+    let hcx = (chordLeft - chordMargin.left + chordRight - chordMargin.right) / 2
+    let hcy = (chordTop - chordMargin.top + chordBottom - chordMargin.bottom) / 2
 
     const chordGroups = gh.append("g")
         .selectAll()
@@ -336,6 +390,7 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
                 highlightLocked[d.source.index] = highlightedComboLocked[d.source.index].includes(true);
                 highlightedTypeCombos[d.source.index][d.target.index] = highlightedComboLocked[d.source.index][d.target.index];
                 highlightedTypes[d.source.index] = highlightLocked[d.source.index];
+                d3.selectAll("g").selectAll("rect,line,area,path").dispatch("typeUpdate");
             })
             .on("typeUpdate", function(d) {
                 if (!highlightedTypeCombos[d.source.index][d.target.index]) {
@@ -478,7 +533,6 @@ d3.csv("data/pokemon_alopez247.csv").then(rawData =>{
         .attr("fill-opacity", 0)
         .attr("x", legendLeft + legendMargin.left)
         .attr("y", legendTop + legendMargin.top)
-        
 
     const legendcol = gl.append("g")
         .selectAll("legendColors")
